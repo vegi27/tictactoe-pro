@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tic-Tac-Toe Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'neon-blue': '#00f3ff',
+                        'neon-pink': '#ff00ff',
+                        'deep-space': '#050b14',
+                    },
+                    animation: {
+                        'blob': 'blob 7s infinite',
+                        'fade-in': 'fadeIn 0.5s ease-out forwards',
+                    },
+                    keyframes: {
+                        blob: {
+                            '0%': { transform: 'translate(0px, 0px) scale(1)' },
+                            '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+                            '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+                            '100%': { transform: 'translate(0px, 0px) scale(1)' },
+                        },
+                        fadeIn: {
+                            '0%': { opacity: '0', transform: 'translateY(10px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --color-x: #00f3ff;
+            --color-o: #ff00ff;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: #050b14;
+            background-image: 
+                radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
+                radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), 
+                radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%);
+            color: white;
+            overflow-x: hidden;
+            touch-action: manipulation;
+            min-height: 100vh;
+        }
+
+        /* Glassmorphism utility */
+        .glass {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .glass-panel {
+            background: rgba(17, 25, 40, 0.75);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.125);
+        }
+
+        /* Cell & Grid Styling */
+        .main-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            width: 100%;
+            max-width: 500px;
+            aspect-ratio: 1/1;
+            margin: 0 auto;
+            position: relative;
+            z-index: 10;
+        }
+
+        .small-board {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2px;
+            background-color: rgba(255,255,255,0.1);
+            border-radius: 8px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 2px solid transparent;
+        }
+
+        .cell {
+            background-color: rgba(5, 11, 20, 0.95); /* Match bg to hide gaps */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            font-weight: 900;
+            cursor: pointer;
+            user-select: none;
+            aspect-ratio: 1/1;
+            transition: background-color 0.2s;
+        }
+
+        /* Active Board Animations */
+        @keyframes border-pulse-x {
+            0%, 100% { box-shadow: 0 0 5px var(--color-x), inset 0 0 5px var(--color-x); border-color: var(--color-x); }
+            50% { box-shadow: 0 0 20px var(--color-x), inset 0 0 10px var(--color-x); border-color: rgba(0, 243, 255, 0.5); }
+        }
+
+        @keyframes border-pulse-o {
+            0%, 100% { box-shadow: 0 0 5px var(--color-o), inset 0 0 5px var(--color-o); border-color: var(--color-o); }
+            50% { box-shadow: 0 0 20px var(--color-o), inset 0 0 10px var(--color-o); border-color: rgba(255, 0, 255, 0.5); }
+        }
+
+        .active-board-x { animation: border-pulse-x 1.5s infinite; transform: scale(1.02); z-index: 20; }
+        .active-board-o { animation: border-pulse-o 1.5s infinite; transform: scale(1.02); z-index: 20; }
+        
+        .cell.valid-move { background-color: rgba(255, 255, 255, 0.08); }
+        
+        /* Marks */
+        .cell.x { 
+            background: -webkit-linear-gradient(#00f3ff, #0088ff); 
+            -webkit-background-clip: text; 
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 15px rgba(0, 243, 255, 0.3);
+        }
+        .cell.o { 
+            background: -webkit-linear-gradient(#ff00ff, #ff0080); 
+            -webkit-background-clip: text; 
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 15px rgba(255, 0, 255, 0.3);
+        }
+
+        /* Large Won Board Overlay */
+        .board-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 5rem;
+            font-weight: 900;
+            background-color: rgba(5, 11, 20, 0.85);
+            backdrop-filter: blur(3px);
+            z-index: 10;
+        }
+        .board-overlay.x { color: var(--color-x); text-shadow: 0 0 30px var(--color-x); }
+        .board-overlay.o { color: var(--color-o); text-shadow: 0 0 30px var(--color-o); }
+        .board-overlay.draw { color: #94a3b8; font-size: 3rem; }
+
+        /* UI Helpers */
+        .hidden-screen { display: none !important; }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0));
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.18);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        
+        .btn-neon-blue {
+            background: rgba(0, 243, 255, 0.1);
+            border: 1px solid var(--color-x);
+            box-shadow: 0 0 10px rgba(0, 243, 255, 0.2);
+        }
+        .btn-neon-blue:hover { background: rgba(0, 243, 255, 0.2); box-shadow: 0 0 20px rgba(0, 243, 255, 0.4); }
+
+        .btn-neon-pink {
+            background: rgba(255, 0, 255, 0.1);
+            border: 1px solid var(--color-o);
+            box-shadow: 0 0 10px rgba(255, 0, 255, 0.2);
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center p-4 relative">
+
+    <!-- Background Blobs -->
+    <div class="fixed top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
+        <div class="absolute top-0 -left-4 w-72 h-72 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+        <div class="absolute top-0 -right-4 w-72 h-72 bg-cyan-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div class="absolute -bottom-8 left-20 w-72 h-72 bg-pink-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+    </div>
+
+    <!-- START SCREEN -->
+    <div id="start-screen" class="w-full max-w-md flex flex-col gap-6 text-center animate-fade-in z-50">
+        <div class="mb-8">
+            <h1 class="text-6xl font-black tracking-tighter text-white mb-2" style="text-shadow: 0 0 30px rgba(255,255,255,0.2);">
+                <span class="text-neon-blue">TIC</span> <span class="text-white">TAC</span> <span class="text-neon-pink">TOE</span>
+            </h1>
+            <span class="bg-clip-text text-transparent bg-gradient-to-r from-neon-blue to-neon-pink text-2xl font-bold tracking-[0.5em] uppercase">
+                PRO EDITION
+            </span>
+        </div>
+
+        <div class="glass-panel rounded-2xl p-8 flex flex-col gap-4 shadow-2xl">
+            <h2 class="text-slate-300 text-lg uppercase tracking-widest font-bold mb-2">Select Mode</h2>
+            
+            <button onclick="startGame('pvp')" class="group relative px-6 py-5 font-bold text-white transition-all duration-200 rounded-xl btn-neon-blue flex items-center justify-between">
+                <span class="text-xl tracking-wider">PLAYER VS PLAYER</span>
+                <span class="text-2xl group-hover:translate-x-1 transition-transform">👥</span>
+            </button>
+
+            <button onclick="startGame('ai')" class="group relative px-6 py-5 font-bold text-white transition-all duration-200 rounded-xl btn-neon-pink flex items-center justify-between">
+                <span class="text-xl tracking-wider">PLAYER VS AI</span>
+                <span class="text-2xl group-hover:translate-x-1 transition-transform">🤖</span>
+            </button>
+        </div>
+        
+        <button onclick="toggleRules()" class="text-slate-400 hover:text-white underline underline-offset-4 text-sm uppercase tracking-widest">How to Play</button>
+    </div>
+
+    <!-- GAME SCREEN -->
+    <div id="game-screen" class="w-full max-w-lg flex flex-col items-center gap-4 hidden-screen animate-fade-in">
+        
+        <!-- Game Header -->
+        <header class="w-full flex justify-between items-center glass p-3 rounded-xl mb-2">
+            <button onclick="showStartScreen()" class="text-xs font-bold text-slate-400 hover:text-white uppercase tracking-widest border border-slate-700 px-3 py-2 rounded-lg hover:bg-white/10 transition-colors">
+                ← Menu
+            </button>
+            <div class="flex flex-col items-center">
+                <div class="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Turn</div>
+                <div id="turn-indicator" class="text-3xl font-black leading-none text-neon-blue drop-shadow-[0_0_10px_rgba(0,243,255,0.5)]">X</div>
+            </div>
+            <button onclick="toggleRules()" class="text-xs font-bold text-slate-400 hover:text-white uppercase tracking-widest border border-slate-700 px-3 py-2 rounded-lg hover:bg-white/10 transition-colors">
+                Rules ?
+            </button>
+        </header>
+
+        <div id="message-area" class="h-6 text-sm font-bold text-slate-300 text-center tracking-wide">
+            Start anywhere!
+        </div>
+
+        <!-- The Board -->
+        <div class="main-grid" id="main-grid">
+            <!-- Generated by JS -->
+        </div>
+
+        <button onclick="resetGame()" class="mt-6 w-full glass hover:bg-white/10 text-white font-bold py-4 px-4 rounded-xl transition-all uppercase tracking-widest border-t border-white/20">
+            Restart Match
+        </button>
+    </div>
+
+    <!-- Rules Modal -->
+    <div id="rules-modal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+        <div class="glass-panel border border-slate-700 rounded-2xl max-w-md w-full flex flex-col shadow-2xl overflow-hidden">
+            <div class="p-6 border-b border-slate-700 flex justify-between items-center bg-white/5">
+                <h2 class="text-xl font-bold text-white uppercase tracking-wider">How to Play</h2>
+                <button onclick="toggleRules()" class="text-slate-400 hover:text-white text-2xl">&times;</button>
+            </div>
+            <div class="p-6 space-y-4 text-slate-300 text-sm leading-relaxed">
+                <p><strong class="text-white">Objective:</strong> Win 3 large grid cells in a line.</p>
+                <div class="bg-slate-900/50 p-3 rounded-lg border-l-2 border-neon-blue">
+                    <h3 class="font-bold text-white mb-1">Forced Play</h3>
+                    <p>Playing in the top-right cell sends your opponent to the top-right board.</p>
+                </div>
+                <div class="bg-slate-900/50 p-3 rounded-lg border-l-2 border-neon-pink">
+                    <h3 class="font-bold text-white mb-1">Win a Board</h3>
+                    <p>Win a small board to claim the large cell. Once won, it's locked.</p>
+                </div>
+                <div class="bg-slate-900/50 p-3 rounded-lg border-l-2 border-yellow-400">
+                    <h3 class="font-bold text-white mb-1">Free Move</h3>
+                    <p>If sent to a full/won board, play <strong class="text-white">anywhere</strong>.</p>
+                </div>
+            </div>
+            <div class="p-4 border-t border-slate-700">
+                <button onclick="toggleRules()" class="w-full bg-white/10 hover:bg-white/20 text-white font-bold py-3 rounded-xl transition-colors">Got it</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Win Modal -->
+    <div id="win-modal" class="fixed inset-0 bg-black/95 z-50 hidden flex items-center justify-center p-4">
+        <div class="text-center transform transition-all scale-100 relative">
+            <!-- Glow behind -->
+            <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-gradient-to-r from-neon-blue to-neon-pink blur-[100px] opacity-30 rounded-full"></div>
+            
+            <h2 id="winner-title" class="text-7xl font-black mb-4 text-white relative z-10">X WINS</h2>
+            <p class="text-slate-300 text-xl mb-8 uppercase tracking-[0.3em]">Champion</p>
+            
+            <div class="flex gap-4 justify-center relative z-10">
+                <button onclick="showStartScreen()" class="glass hover:bg-white/10 text-white text-lg font-bold py-3 px-8 rounded-full transition-all">
+                    Menu
+                </button>
+                <button onclick="resetGame()" class="bg-white text-black hover:scale-105 text-lg font-bold py-3 px-8 rounded-full shadow-[0_0_30px_rgba(255,255,255,0.4)] transition-all">
+                    Replay
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <canvas id="confetti-canvas" class="fixed inset-0 pointer-events-none z-[60]"></canvas>
+
+    <script>
+        // --- Game Config & State ---
+        const gameState = {
+            smallBoards: [], 
+            mainBoard: [], 
+            currentPlayer: 'X',
+            nextBoardIndex: null, 
+            gameActive: false,
+            winner: null,
+            mode: 'pvp', // 'pvp' or 'ai'
+            aiPlayer: 'O',
+            isAiThinking: false
+        };
+
+        const winPatterns = [
+            [0, 1, 2], [3, 4, 5], [6, 7, 8], 
+            [0, 3, 6], [1, 4, 7], [2, 5, 8], 
+            [0, 4, 8], [2, 4, 6]
+        ];
+
+        // --- Screen Navigation ---
+        function showStartScreen() {
+            document.getElementById('start-screen').classList.remove('hidden-screen');
+            document.getElementById('game-screen').classList.add('hidden-screen');
+            document.getElementById('win-modal').classList.add('hidden');
+            gameState.gameActive = false;
+            stopConfetti();
+        }
+
+        function startGame(mode) {
+            gameState.mode = mode;
+            document.getElementById('start-screen').classList.add('hidden-screen');
+            document.getElementById('game-screen').classList.remove('hidden-screen');
+            resetGame();
+        }
+
+        // --- Core Game Logic ---
+        function initGame() {
+            gameState.smallBoards = Array(9).fill(null).map(() => Array(9).fill(null));
+            gameState.mainBoard = Array(9).fill(null);
+            gameState.currentPlayer = 'X';
+            gameState.nextBoardIndex = null;
+            gameState.gameActive = true;
+            gameState.winner = null;
+            gameState.isAiThinking = false;
+
+            const grid = document.getElementById('main-grid');
+            grid.innerHTML = '';
+
+            for (let i = 0; i < 9; i++) {
+                const smallBoard = document.createElement('div');
+                smallBoard.className = 'small-board';
+                smallBoard.id = `board-${i}`;
+
+                const overlay = document.createElement('div');
+                overlay.className = 'board-overlay hidden';
+                overlay.id = `overlay-${i}`;
+                smallBoard.appendChild(overlay);
+
+                for (let j = 0; j < 9; j++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.board = i;
+                    cell.dataset.cell = j;
+                    cell.onclick = () => handleInput(i, j);
+                    smallBoard.appendChild(cell);
+                }
+                grid.appendChild(smallBoard);
+            }
+            updateUI();
+        }
+
+        function handleInput(boardIdx, cellIdx) {
+            if (gameState.mode === 'ai' && gameState.currentPlayer === gameState.aiPlayer) return; // Prevent clicking during AI turn
+            handleMove(boardIdx, cellIdx);
+        }
+
+        function handleMove(boardIdx, cellIdx) {
+            if (!gameState.gameActive) return;
+            if (gameState.smallBoards[boardIdx][cellIdx] !== null) return;
+            if (gameState.mainBoard[boardIdx] !== null) return;
+            if (gameState.nextBoardIndex !== null && gameState.nextBoardIndex !== boardIdx) return;
+
+            // Execute Move
+            gameState.smallBoards[boardIdx][cellIdx] = gameState.currentPlayer;
+            
+            // Check Small Board Win
+            if (checkWin(gameState.smallBoards[boardIdx])) {
+                gameState.mainBoard[boardIdx] = gameState.currentPlayer;
+            } else if (gameState.smallBoards[boardIdx].every(c => c !== null)) {
+                gameState.mainBoard[boardIdx] = 'D';
+            }
+
+            // Check Main Game Win
+            const gameWinner = checkWin(gameState.mainBoard);
+            if (gameWinner) {
+                endGame(gameWinner);
+                return;
+            } else if (gameState.mainBoard.every(b => b !== null)) {
+                endGame('Draw');
+                return;
+            }
+
+            // Next Board Logic
+            const targetStatus = gameState.mainBoard[cellIdx];
+            gameState.nextBoardIndex = (targetStatus !== null) ? null : cellIdx;
+            
+            // Switch Player
+            gameState.currentPlayer = gameState.currentPlayer === 'X' ? 'O' : 'X';
+            updateUI();
+
+            // AI Turn Trigger
+            if (gameState.gameActive && gameState.mode === 'ai' && gameState.currentPlayer === gameState.aiPlayer) {
+                gameState.isAiThinking = true;
+                updateUI(); // Show thinking state
+                setTimeout(makeAiMove, 600); // Artificial delay for realism
+            }
+        }
+
+        // --- AI Logic (Heuristic Based) ---
+        function makeAiMove() {
+            if (!gameState.gameActive) return;
+
+            // 1. Determine valid boards
+            let validBoards = [];
+            if (gameState.nextBoardIndex !== null) {
+                validBoards = [gameState.nextBoardIndex];
+            } else {
+                // Free move: Any board that isn't won/full
+                validBoards = gameState.mainBoard.map((val, idx) => val === null ? idx : null).filter(val => val !== null);
+            }
+
+            // 2. Find all valid moves [boardIdx, cellIdx]
+            let validMoves = [];
+            for (let b of validBoards) {
+                for (let c = 0; c < 9; c++) {
+                    if (gameState.smallBoards[b][c] === null) {
+                        validMoves.push({ b, c, score: 0 });
+                    }
+                }
+            }
+
+            // 3. Score Moves
+            validMoves.forEach(move => {
+                const { b, c } = move;
+                const board = [...gameState.smallBoards[b]]; // Copy board
+                
+                // Heuristic 1: Win Small Board (High Priority)
+                board[c] = gameState.aiPlayer;
+                if (checkWin(board)) move.score += 100;
+
+                // Heuristic 2: Block Opponent Win (High Priority)
+                board[c] = 'X'; // Assume opponent plays here
+                if (checkWin(board)) move.score += 50; 
+
+                // Heuristic 3: Avoid sending opponent to a board where they can win immediately
+                // The move sends opponent to board index 'c'.
+                const targetBoardIdx = c;
+                if (gameState.mainBoard[targetBoardIdx] === null) {
+                    // Check if opponent can win targetBoardIdx in 1 move
+                    // Simple check: does opponent have 2 in a row there?
+                    const opponentCanWinNext = checkWinPotential(gameState.smallBoards[targetBoardIdx], 'X');
+                    if (opponentCanWinNext) move.score -= 20;
+                } 
+                else {
+                    // Target board is full/won -> Opponent gets Free Move (BAD)
+                    move.score -= 40; 
+                }
+
+                // Heuristic 4: Prefer Center/Corners
+                if (c === 4) move.score += 5;
+                if ([0,2,6,8].includes(c)) move.score += 3;
+            });
+
+            // 4. Sort and Pick Best
+            validMoves.sort((a, b) => b.score - a.score);
+            
+            // Add some randomness among top moves to feel human
+            const bestScore = validMoves[0].score;
+            const topMoves = validMoves.filter(m => m.score >= bestScore - 10);
+            const chosenMove = topMoves[Math.floor(Math.random() * topMoves.length)];
+
+            gameState.isAiThinking = false;
+            handleMove(chosenMove.b, chosenMove.c);
+        }
+
+        // Helper: Check if player can win a board in 1 move
+        function checkWinPotential(boardArr, player) {
+            // Very simple heuristic: count occurrences in lines
+            for (let pattern of winPatterns) {
+                const [p1, p2, p3] = pattern;
+                const line = [boardArr[p1], boardArr[p2], boardArr[p3]];
+                const count = line.filter(cell => cell === player).length;
+                const empty = line.filter(cell => cell === null).length;
+                if (count === 2 && empty === 1) return true;
+            }
+            return false;
+        }
+
+        function checkWin(boardArray) {
+            for (let pattern of winPatterns) {
+                const [a, b, c] = pattern;
+                if (boardArray[a] && boardArray[a] === boardArray[b] && boardArray[a] === boardArray[c] && boardArray[a] !== 'D') {
+                    return boardArray[a];
+                }
+            }
+            return null;
+        }
+
+        // --- UI Updates ---
+        function updateUI() {
+            const turnDisplay = document.getElementById('turn-indicator');
+            const msgArea = document.getElementById('message-area');
+
+            // Header Status
+            if (gameState.isAiThinking) {
+                turnDisplay.innerText = "...";
+                turnDisplay.className = "text-3xl font-black text-neon-pink animate-pulse";
+                msgArea.innerText = "AI is calculating...";
+            } else {
+                turnDisplay.innerText = gameState.currentPlayer;
+                turnDisplay.className = `text-3xl font-black ${gameState.currentPlayer === 'X' ? 'text-neon-blue drop-shadow-[0_0_10px_rgba(0,243,255,0.8)]' : 'text-neon-pink drop-shadow-[0_0_10px_rgba(255,0,255,0.8)]'}`;
+                
+                if (gameState.nextBoardIndex === null) {
+                    msgArea.innerText = gameState.gameActive ? "Free Move: Play anywhere!" : "Game Over";
+                    msgArea.className = gameState.gameActive ? "h-6 text-sm font-bold text-yellow-400 animate-pulse tracking-wide" : "h-6 text-sm font-bold text-slate-500";
+                } else {
+                    msgArea.innerText = `Play in the highlighted board`;
+                    msgArea.className = "h-6 text-sm font-medium text-slate-300 tracking-wide";
+                }
+            }
+
+            // Board Rendering
+            for (let i = 0; i < 9; i++) {
+                const boardEl = document.getElementById(`board-${i}`);
+                const overlay = document.getElementById(`overlay-${i}`);
+                
+                // Active State logic
+                boardEl.classList.remove('active-board-x', 'active-board-o');
+                boardEl.style.opacity = '1';
+                
+                if (gameState.gameActive && gameState.mainBoard[i] === null) {
+                    const isTarget = gameState.nextBoardIndex === i || gameState.nextBoardIndex === null;
+                    if (isTarget) {
+                        boardEl.classList.add(gameState.currentPlayer === 'X' ? 'active-board-x' : 'active-board-o');
+                    } else {
+                        boardEl.style.opacity = '0.3'; // Dim inactive boards
+                    }
+                }
+
+                // Render Cells
+                const cells = boardEl.querySelectorAll('.cell');
+                cells.forEach((cell, idx) => {
+                    const val = gameState.smallBoards[i][idx];
+                    cell.innerText = val || '';
+                    cell.className = `cell ${val ? val.toLowerCase() : ''}`;
+                    
+                    // Show valid moves hints (only for human player)
+                    if (gameState.gameActive && !val && gameState.mainBoard[i] === null) {
+                        const isTarget = gameState.nextBoardIndex === i || gameState.nextBoardIndex === null;
+                        if (isTarget && (!gameState.isAiThinking)) {
+                            cell.classList.add('valid-move');
+                        }
+                    }
+                });
+
+                // Completed Boards
+                if (gameState.mainBoard[i]) {
+                    overlay.classList.remove('hidden');
+                    overlay.innerText = gameState.mainBoard[i] === 'D' ? '' : gameState.mainBoard[i];
+                    overlay.className = `board-overlay ${gameState.mainBoard[i] === 'D' ? 'draw' : gameState.mainBoard[i].toLowerCase()}`;
+                } else {
+                    overlay.classList.add('hidden');
+                }
+            }
+        }
+
+        function endGame(winner) {
+            gameState.gameActive = false;
+            gameState.winner = winner;
+            
+            const modal = document.getElementById('win-modal');
+            const title = document.getElementById('winner-title');
+            
+            modal.classList.remove('hidden');
+            
+            if (winner === 'Draw') {
+                title.innerText = "DRAW";
+                title.className = "text-6xl font-black mb-4 text-slate-400";
+            } else {
+                title.innerHTML = `${winner} WINS`;
+                title.className = `text-6xl font-black mb-4 ${winner === 'X' ? 'text-neon-blue drop-shadow-[0_0_20px_var(--color-x)]' : 'text-neon-pink drop-shadow-[0_0_20px_var(--color-o)]'}`;
+                startConfetti();
+            }
+        }
+
+        function resetGame() {
+            stopConfetti();
+            document.getElementById('win-modal').classList.add('hidden');
+            initGame();
+        }
+
+        function toggleRules() {
+            document.getElementById('rules-modal').classList.toggle('hidden');
+        }
+
+        // --- Confetti FX ---
+        let confettiCtx, confettiCanvas;
+        let particles = [];
+        let animationId;
+
+        function startConfetti() {
+            confettiCanvas = document.getElementById('confetti-canvas');
+            confettiCtx = confettiCanvas.getContext('2d');
+            resizeConfetti();
+            
+            particles = [];
+            const colors = ['#00f3ff', '#ff00ff', '#ffffff'];
+            for(let i=0; i<150; i++) {
+                particles.push({
+                    x: Math.random() * confettiCanvas.width,
+                    y: Math.random() * confettiCanvas.height - confettiCanvas.height,
+                    vx: Math.random() * 4 - 2,
+                    vy: Math.random() * 5 + 2,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    size: Math.random() * 6 + 2,
+                    tilt: Math.random() * 10
+                });
+            }
+            animateConfetti();
+        }
+
+        function animateConfetti() {
+            confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+            particles.forEach(p => {
+                p.y += p.vy;
+                p.x += p.vx + Math.sin(p.tilt);
+                p.tilt += 0.1;
+                if(p.y > confettiCanvas.height) p.y = -20;
+                
+                confettiCtx.fillStyle = p.color;
+                confettiCtx.fillRect(p.x, p.y, p.size, p.size);
+            });
+            animationId = requestAnimationFrame(animateConfetti);
+        }
+
+        function stopConfetti() {
+            if (animationId) cancelAnimationFrame(animationId);
+            if (confettiCtx) confettiCtx.clearRect(0,0,confettiCanvas.width, confettiCanvas.height);
+        }
+
+        function resizeConfetti() {
+            if(confettiCanvas) {
+                confettiCanvas.width = window.innerWidth;
+                confettiCanvas.height = window.innerHeight;
+            }
+        }
+        window.addEventListener('resize', resizeConfetti);
+
+        // --- Init ---
+        // Don't call initGame immediately, wait for start screen selection
+    </script>
+</body>
+</html>
